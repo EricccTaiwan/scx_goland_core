@@ -1,3 +1,5 @@
+/* Copyright (c) Ian Chen <ychen.desl@gmail.com> */
+/* The scx_goland is based on scx_goland_core */
 /* Copyright (c) Andrea Righi <andrea.righi@linux.dev> */
 /*
  * scx_goland_core: BPF backend for schedulers running in user-space.
