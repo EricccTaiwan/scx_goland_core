@@ -10,8 +10,8 @@ import (
 	"encoding/binary"
 	"unsafe"
 
-	core "github.com/ianchen0119/scx/scx_goland_core/goland_core"
-	"github.com/ianchen0119/scx/scx_goland_core/util"
+	core "github.com/Gthulhu/scx_goland_core/goland_core"
+	"github.com/Gthulhu/scx_goland_core/util"
 )
 
 func endian() binary.ByteOrder {

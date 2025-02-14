@@ -1,4 +1,4 @@
-module github.com/ianchen0119/scx/scx_goland_core
+module github.com/Gthulhu/scx_goland_core
 
 go 1.22.6
 
