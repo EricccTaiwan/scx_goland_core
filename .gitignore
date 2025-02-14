@@ -1,0 +1,8 @@
+libbpf
+libbpfgo
+output
+*.ll
+*.o
+*.skeleton.h
+main
+scx
