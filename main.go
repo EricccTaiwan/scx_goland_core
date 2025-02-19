@@ -98,31 +98,9 @@ func main() {
 	}
 	log.Printf("pid: %v", pid)
 
-	topo, err := util.GetTopology()
+	err = util.InitCacheDomains(bpfModule)
 	if err != nil {
-		log.Panicf("GetTopology failed: %v", err)
-	}
-	log.Printf("topology: %v", topo)
-	for _, cpuIdList := range topo["L2"] {
-		for _, cpuId := range cpuIdList {
-			for _, sibCpuId := range cpuIdList {
-				err = bpfModule.EnableSiblingCpu(2, int32(cpuId), int32(sibCpuId))
-				if err != nil {
-					log.Panicf("EnableSiblingCpu failed: lvl %v cpuId %v sibCpuId %v", 2, cpuId, sibCpuId)
-				}
-			}
-		}
-	}
-
-	for _, cpuIdList := range topo["L3"] {
-		for _, cpuId := range cpuIdList {
-			for _, sibCpuId := range cpuIdList {
-				err = bpfModule.EnableSiblingCpu(3, int32(cpuId), int32(sibCpuId))
-				if err != nil {
-					log.Panicf("EnableSiblingCpu failed: lvl %v cpuId %v sibCpuId %v", 3, cpuId, sibCpuId)
-				}
-			}
-		}
+		log.Panicf("InitCacheDomains failed: %v", err)
 	}
 
 	if err := bpfModule.Attach(); err != nil {
