@@ -18,6 +18,7 @@ const (
 type Sched struct {
 	mod        *bpf.Module
 	bss        *BssMap
+	uei        *UeiMap
 	structOps  *bpf.BPFMap
 	queue      chan []byte // The map containing tasks that are queued to user space from the kernel.
 	dispatch   chan []byte
@@ -76,6 +77,8 @@ func LoadSched(objPath string) *Sched {
 		}
 		if m.Name() == "main.bss" {
 			s.bss = &BssMap{m}
+		} else if m.Name() == "main.data" {
+			s.uei = &UeiMap{m}
 		} else if m.Name() == "queued" {
 			s.queue = make(chan []byte, 200)
 			rb, err := s.mod.InitRingBuf("queued", s.queue)

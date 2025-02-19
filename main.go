@@ -71,7 +71,7 @@ type TaskInfo struct {
 }
 
 var taskInfoMap = make(map[int32]*TaskInfo)
-var minVruntime uint64 = 0 // 全局最小 vruntime
+var minVruntime uint64 = 0 // global vruntime
 
 func now() uint64 {
 	return uint64(time.Now().UnixNano())
@@ -108,7 +108,7 @@ func main() {
 	}
 
 	go func() {
-		for {
+		for !bpfModule.Stopped() {
 			DrainQueuedTask(bpfModule)
 			t := GetTaskFromPool()
 
