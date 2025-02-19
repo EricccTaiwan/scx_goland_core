@@ -1,8 +1,8 @@
 /* Copyright (c) Ian Chen <ychen.desl@gmail.com> */
-/* The scx_goland is based on scx_goland_core */
+/* The scx_goland is based on scx_rustland_core */
 /* Copyright (c) Andrea Righi <andrea.righi@linux.dev> */
 /*
- * scx_goland_core: BPF backend for schedulers running in user-space.
+ * scx_rustland_core: BPF backend for schedulers running in user-space.
  *
  * This BPF backend implements the low level sched-ext functionalities for a
  * user-space counterpart, that implements the actual scheduling policy.
@@ -306,6 +306,9 @@ static inline bool is_usersched_task(const struct task_struct *p)
 	return p->pid == usersched_pid;
 }
 
+/*
+ * Return true if the target task @p belongs to the user-space scheduler.
+ */
 static inline bool is_belong_usersched_task(const struct task_struct *p)
 {
 	return p->tgid == usersched_pid;
