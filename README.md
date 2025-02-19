@@ -2,6 +2,12 @@
 
 A framework for building custom Linux schedulers using BPF and Go.
 
+> Current status: not ready for production use.
+
+## DEMO
+
+![](./assets/demo.gif)
+
 ## Overview
 
 ![](./assets/design.png)
