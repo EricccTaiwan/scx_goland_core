@@ -22,23 +22,25 @@ type QueuedTask struct {
 	CpuMaskCnt     uint64 // cpumask generation counter (private)
 }
 
-func (s *Sched) DequeueTask() *QueuedTask {
+func (s *Sched) DequeueTask(task *QueuedTask) {
 	select {
 	case t := <-s.queue:
-		task := QueuedTask{}
 		buff := bytes.NewBuffer(t)
-		err := binary.Read(buff, binary.LittleEndian, &task)
+		err := binary.Read(buff, binary.LittleEndian, task)
 		if err != nil {
-			return nil
+			task.Pid = -1
+			return
 		}
 		err = s.SubNrQueued()
 		if err != nil {
+			task.Pid = -1
 			log.Printf("SubNrQueued err: %v", err)
-			return &task
+			return
 		}
-		return &task
+		return
 	default:
-		return nil
+		task.Pid = -1
+		return
 	}
 }
 

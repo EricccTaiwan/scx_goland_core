@@ -806,18 +806,6 @@ void BPF_STRUCT_OPS(goland_enqueue, struct task_struct *p, u64 enq_flags)
 	}
 
 	/*
-	 * WORKAROUND: Dispatch kthread to the shared DSQ to avoid deadlock 
-	 * (page fault caused by user-space scheduler).
-	 */
-	if (is_kthread(p)) {
-		scx_bpf_dsq_insert_vtime(p, SHARED_DSQ,
-					 SCX_SLICE_DFL, 0, enq_flags);
-		__sync_fetch_and_add(&nr_kernel_dispatches, 1);
-		kick_task_cpu(p);
-		return;
-	}
-
-	/*
 	 * WORKAROUND: Dispatch user-space scheduler to the shared DSQ to avoid
 	 * starvation on user space scheduler goroutine(s).
 	 */
@@ -984,7 +972,7 @@ void BPF_STRUCT_OPS(goland_running, struct task_struct *p)
 	 * Mark the CPU as busy by setting the pid as owner (ignoring the
 	 * user-space scheduler).
 	 */
-	if (!is_usersched_task(p))
+	if (!is_belong_usersched_task(p))
 		__sync_fetch_and_add(&nr_running, 1);
 }
 
@@ -999,7 +987,7 @@ void BPF_STRUCT_OPS(goland_stopping, struct task_struct *p, bool runnable)
 	/*
 	 * Mark the CPU as idle by setting the owner to 0.
 	 */
-	if (!is_usersched_task(p))
+	if (!is_belong_usersched_task(p))
 		__sync_fetch_and_sub(&nr_running, 1);
 }
 

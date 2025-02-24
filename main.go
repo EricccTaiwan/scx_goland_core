@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -30,34 +29,34 @@ func endian() binary.ByteOrder {
 const (
 	MAX_LATENCY_WEIGHT = 1000
 	SLICE_NS_DEFAULT   = 5000 * 1000 // 5ms
-	SLICE_NS_MIN       = 500 * 1000
+	SLICE_NS_MIN       = 200 * 1000
 	SCX_ENQ_WAKEUP     = 1
 	NSEC_PER_SEC       = 1000000000 // 1 second in nanoseconds
 )
 
-var taskPool []*core.QueuedTask = []*core.QueuedTask{}
+const taskPoolSize = 4096
+
+var taskPool = make([]core.QueuedTask, taskPoolSize)
+var taskPoolHead, taskPoolTail int
 
 func DrainQueuedTask(s *core.Sched) {
-	for {
-		task := s.DequeueTask()
-		if task == nil {
+	for (taskPoolTail+1)%taskPoolSize != taskPoolHead {
+		s.DequeueTask(&taskPool[taskPoolTail])
+		if taskPool[taskPoolTail].Pid == -1 {
 			return
 		}
-		taskPool = append(taskPool, task)
+
+		taskPoolTail = (taskPoolTail + 1) % taskPoolSize
 	}
 }
 
 func GetTaskFromPool() *core.QueuedTask {
-	if len(taskPool) == 0 {
+	if taskPoolHead == taskPoolTail {
 		return nil
 	}
-	t := taskPool[0]
-	taskPool = taskPool[1:]
-	return t
-}
-
-func init() {
-	runtime.GOMAXPROCS(1)
+	t := taskPool[taskPoolHead]
+	taskPoolHead = (taskPoolHead + 1) % taskPoolSize
+	return &t
 }
 
 // TaskInfo stores task statistics
@@ -191,7 +190,6 @@ func main() {
 				if err != nil {
 					log.Printf("NotifyComplete failed: %v", err)
 				}
-				runtime.Gosched()
 			}
 		}
 	}()
