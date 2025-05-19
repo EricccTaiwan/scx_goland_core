@@ -80,14 +80,14 @@ func LoadSched(objPath string) *Sched {
 		} else if m.Name() == "main.data" {
 			s.uei = &UeiMap{m}
 		} else if m.Name() == "queued" {
-			s.queue = make(chan []byte, 4096)
+			s.queue = make(chan []byte, 500)
 			rb, err := s.mod.InitRingBuf("queued", s.queue)
 			if err != nil {
 				panic(err)
 			}
 			rb.Poll(300)
 		} else if m.Name() == "dispatched" {
-			s.dispatch = make(chan []byte, 4096)
+			s.dispatch = make(chan []byte, 500)
 			urb, err := s.mod.InitUserRingBuf("dispatched", s.dispatch)
 			if err != nil {
 				panic(err)
