@@ -181,7 +181,8 @@ func (s *Sched) EnableSiblingCpu(lvlId, cpuId, siblingCpuId int32) error {
 }
 
 func (s *Sched) Attach() error {
-	return s.structOps.AttachStructOps()
+	_, err := s.structOps.AttachStructOps()
+	return err
 }
 
 func (s *Sched) Close() {
