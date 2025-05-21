@@ -22,7 +22,7 @@ CGOFLAG = CC=clang CGO_CFLAGS="-I$(BASEDIR)/$(OUTPUT)" CGO_LDFLAGS="-lelf -lz $(
 STATIC=-extldflags -static
 
 .PHONY: build
-build: $(BPF_OBJ) libbpf libbpf-uapi
+build: $(BPF_OBJ) libbpf libbpf-uapi wrapper
 	$(CGOFLAG) go build -ldflags "-w -s $(STATIC)" main.go
 
 test: build
@@ -59,8 +59,13 @@ $(BPF_OBJ): %.o: %.c
 		-I scx/build/libbpf/src/usr/include -I scx/build/libbpf/include/uapi -I scx/scheds/include -I scx/scheds/include/arch/x86 -I scx/scheds/include/bpf-compat -I scx/scheds/include/lib \
 		-Wno-compare-distinct-pointer-types \
 		-c $< -o $@
+
+wrapper:
 	bpftool gen skeleton main.bpf.o > main.skeleton.h
+	clang -g -O2 -Wall -fPIC -I scx/build/libbpf/src/usr/include -I scx/build/libbpf/include/uapi -I scx/scheds/include -I scx/scheds/include/arch/x86 -I scx/scheds/include/bpf-compat -I scx/scheds/include/lib -c wrapper.c -o wrapper.o
+	ar rcs libwrapper.a wrapper.o
 
 clean:
+	rm libwrapper.a
 	rm *.skeleton.h
 	rm *.ll *.o

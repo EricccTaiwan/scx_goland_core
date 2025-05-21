@@ -75,6 +75,8 @@ func saturating_sub(a, b uint64) uint64 {
 }
 
 func main() {
+	core.LoadSkel()
+
 	bpfModule := core.LoadSched("main.bpf.o")
 	defer bpfModule.Close()
 	pid := os.Getpid()

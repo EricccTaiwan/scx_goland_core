@@ -9,6 +9,13 @@ import (
 	bpf "github.com/aquasecurity/libbpfgo"
 )
 
+/*
+#cgo CFLAGS: -I /home/ian/scx_goland_core
+#cgo LDFLAGS: -lz /home/ian/scx_goland_core/libwrapper.a
+#include "/home/ian/scx_goland_core/wrapper.h"
+*/
+import "C"
+
 type BssData struct {
 	Usersched_pid        uint32
 	Paid                 uint32
@@ -31,6 +38,10 @@ func (data BssData) String() string {
 		fmt.Sprintf("Nr_kernel_dispatches: %v, Nr_cancel_dispatches: %v ", data.Nr_kernel_dispatches, data.Nr_cancel_dispatches) +
 		fmt.Sprintf("Nr_bounce_dispatches: %v, Nr_failed_dispatches: %v", data.Nr_bounce_dispatches, data.Nr_failed_dispatches) +
 		fmt.Sprintf("Nr_sched_congested: %v", data.Nr_sched_congested)
+}
+
+func LoadSkel() {
+	C.open_skel()
 }
 
 type BssMap struct {
