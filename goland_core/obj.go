@@ -31,15 +31,15 @@ func init() {
 }
 
 func LoadSched(objPath string) *Sched {
+	obj := LoadSkel()
 	bpfModule, err := bpf.NewModuleFromFileArgs(bpf.NewModuleArgs{
-		BPFObjPath:     objPath,
+		BPFObjPath:     "",
 		KernelLogLevel: 0,
 	})
 	if err != nil {
 		panic(err)
 	}
-
-	if err := bpfModule.BPFLoadObject(); err != nil {
+	if err := bpfModule.BPFLoadExistedObject(obj); err != nil {
 		panic(err)
 	}
 
@@ -75,9 +75,10 @@ func LoadSched(objPath string) *Sched {
 		if m == nil {
 			break
 		}
-		if m.Name() == "main.bss" {
+		fmt.Printf("map: %s, type: %s, fd: %d\n", m.Name(), m.Type().String(), m.FileDescriptor())
+		if m.Name() == "main_bpf.bss" {
 			s.bss = &BssMap{m}
-		} else if m.Name() == "main.data" {
+		} else if m.Name() == "main_bpf.data" {
 			s.uei = &UeiMap{m}
 		} else if m.Name() == "queued" {
 			s.queue = make(chan []byte, 500)

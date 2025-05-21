@@ -31,7 +31,7 @@ func (s *Sched) DequeueTask(task *QueuedTask) {
 			task.Pid = -1
 			return
 		}
-		err = s.SubNrQueued()
+		err = s.SubNrQueuedSkel()
 		if err != nil {
 			task.Pid = -1
 			log.Printf("SubNrQueued err: %v", err)

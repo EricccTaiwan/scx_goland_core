@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -75,8 +76,6 @@ func saturating_sub(a, b uint64) uint64 {
 }
 
 func main() {
-	core.LoadSkel()
-
 	bpfModule := core.LoadSched("main.bpf.o")
 	defer bpfModule.Close()
 	pid := os.Getpid()
@@ -94,6 +93,8 @@ func main() {
 	if err := bpfModule.Attach(); err != nil {
 		log.Printf("bpfModule attach failed: %v", err)
 	}
+
+	fmt.Println("GetUserSchedPid:", core.GetUserSchedPid())
 
 	go func() {
 		for !bpfModule.Stopped() {
@@ -132,13 +133,8 @@ func main() {
 					info.avgNvcsw = calcAvg(info.avgNvcsw, avgNvcsw)
 				}
 
-				err, bss := bpfModule.GetBssData()
-				if err != nil {
-					log.Fatalf("GetBssData failed: %v", err)
-				}
-
 				// Evaluate used task time slice.
-				nrWaiting := bss.Nr_queued + bss.Nr_scheduled + 1
+				nrWaiting := core.GetNrQueued() + core.GetNrScheduled() + 1
 				sliceNs := max(SLICE_NS_DEFAULT/nrWaiting, SLICE_NS_MIN)
 				task.SliceNs = sliceNs
 
@@ -174,7 +170,7 @@ func main() {
 
 				bpfModule.DispatchTask(task)
 
-				err = bpfModule.NotifyComplete(uint64(taskPoolCount), &bss)
+				err = core.NotifyCompleteSkel(uint64(taskPoolCount))
 				if err != nil {
 					log.Printf("NotifyComplete failed: %v", err)
 				}
