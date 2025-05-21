@@ -22,7 +22,7 @@ CGOFLAG = CC=clang CGO_CFLAGS="-I$(BASEDIR) -I$(BASEDIR)/$(OUTPUT)" CGO_LDFLAGS=
 STATIC=-extldflags -static
 
 .PHONY: build
-build: $(BPF_OBJ) libbpf libbpf-uapi wrapper
+build: clean $(BPF_OBJ) libbpf libbpf-uapi wrapper
 	$(CGOFLAG) go build -ldflags "-w -s $(STATIC)" main.go
 
 test: build
@@ -66,6 +66,7 @@ wrapper:
 	ar rcs libwrapper.a wrapper.o
 
 clean:
-	rm libwrapper.a
-	rm *.skeleton.h
-	rm *.ll *.o
+	rm libwrapper.a || true
+	rm *.skeleton.h || true
+	rm *.ll *.o || true
+	rm main || true
