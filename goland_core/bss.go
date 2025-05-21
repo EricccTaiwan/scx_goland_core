@@ -10,9 +10,7 @@ import (
 )
 
 /*
-#cgo CFLAGS: -I /home/ian/scx_goland_core
-#cgo LDFLAGS: -lz /home/ian/scx_goland_core/libwrapper.a
-#include "/home/ian/scx_goland_core/wrapper.h"
+#include "wrapper.h"
 */
 import "C"
 
