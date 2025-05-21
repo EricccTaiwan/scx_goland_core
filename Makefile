@@ -18,11 +18,11 @@ LIBBPF_OBJ = $(abspath $(OUTPUT)/libbpf.a)
 LIBBPF_OBJDIR = $(abspath ./$(OUTPUT)/libbpf)
 LIBBPF_DESTDIR = $(abspath ./$(OUTPUT))
 CLANG_BPF_SYS_INCLUDES := `shell $(CLANG) -v -E - </dev/null 2>&1 | sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }'`
-CGOFLAG = CC=clang CGO_CFLAGS="-I$(BASEDIR)/$(OUTPUT)" CGO_LDFLAGS="-lelf -lz $(LIBBPF_OBJ)"
+CGOFLAG = CC=clang CGO_CFLAGS="-I$(BASEDIR) -I$(BASEDIR)/$(OUTPUT)" CGO_LDFLAGS="-lelf -lz $(LIBBPF_OBJ) -lz $(BASEDIR)/libwrapper.a"
 STATIC=-extldflags -static
 
 .PHONY: build
-build: $(BPF_OBJ) libbpf libbpf-uapi
+build: $(BPF_OBJ) libbpf libbpf-uapi wrapper
 	$(CGOFLAG) go build -ldflags "-w -s $(STATIC)" main.go
 
 test: build
@@ -49,7 +49,7 @@ dep:
 	git checkout 09b9e83 && \
 	cd src && \
 	make && \
-	git clone https://github.com/Gthulhu/libbpfgo.git
+	git clone -b feat/user-ring-buffer https://github.com/Gthulhu/libbpfgo.git
 
 $(BPF_OBJ): %.o: %.c
 	clang-17 \
@@ -59,8 +59,13 @@ $(BPF_OBJ): %.o: %.c
 		-I scx/build/libbpf/src/usr/include -I scx/build/libbpf/include/uapi -I scx/scheds/include -I scx/scheds/include/arch/x86 -I scx/scheds/include/bpf-compat -I scx/scheds/include/lib \
 		-Wno-compare-distinct-pointer-types \
 		-c $< -o $@
+
+wrapper:
 	bpftool gen skeleton main.bpf.o > main.skeleton.h
+	clang -g -O2 -Wall -fPIC -I scx/build/libbpf/src/usr/include -I scx/build/libbpf/include/uapi -I scx/scheds/include -I scx/scheds/include/arch/x86 -I scx/scheds/include/bpf-compat -I scx/scheds/include/lib -c wrapper.c -o wrapper.o
+	ar rcs libwrapper.a wrapper.o
 
 clean:
+	rm libwrapper.a
 	rm *.skeleton.h
 	rm *.ll *.o

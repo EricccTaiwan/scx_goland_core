@@ -54,3 +54,5 @@ This software is distributed under the terms of the GNU General Public License v
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+
+<!-- skeleton: bpftool gen skeleton main.bpf.o > scx_goland_core.skeleton.c -->

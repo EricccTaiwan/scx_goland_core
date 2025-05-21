@@ -1,30 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"encoding/binary"
-	"unsafe"
-
 	core "github.com/Gthulhu/scx_goland_core/goland_core"
 	"github.com/Gthulhu/scx_goland_core/util"
 )
-
-func endian() binary.ByteOrder {
-	var i int32 = 0x01020304
-	u := unsafe.Pointer(&i)
-	pb := (*byte)(u)
-	b := *pb
-	if b == 0x04 {
-		return binary.LittleEndian
-	}
-
-	return binary.BigEndian
-}
 
 const (
 	MAX_LATENCY_WEIGHT = 1000
@@ -37,6 +23,7 @@ const (
 const taskPoolSize = 4096
 
 var taskPool = make([]core.QueuedTask, taskPoolSize)
+var taskPoolCount = 0
 var taskPoolHead, taskPoolTail int
 
 func DrainQueuedTask(s *core.Sched) {
@@ -45,8 +32,8 @@ func DrainQueuedTask(s *core.Sched) {
 		if taskPool[taskPoolTail].Pid == -1 {
 			return
 		}
-
 		taskPoolTail = (taskPoolTail + 1) % taskPoolSize
+		taskPoolCount++
 	}
 }
 
@@ -56,6 +43,7 @@ func GetTaskFromPool() *core.QueuedTask {
 	}
 	t := taskPool[taskPoolHead]
 	taskPoolHead = (taskPoolHead + 1) % taskPoolSize
+	taskPoolCount--
 	return &t
 }
 
@@ -106,11 +94,12 @@ func main() {
 		log.Printf("bpfModule attach failed: %v", err)
 	}
 
+	fmt.Println("GetUserSchedPid:", core.GetUserSchedPid())
+
 	go func() {
 		for !bpfModule.Stopped() {
 			DrainQueuedTask(bpfModule)
 			t := GetTaskFromPool()
-
 			if t != nil {
 				task := core.NewDispatchedTask(t)
 				err, cpu := bpfModule.SelectCPU(t)
@@ -145,11 +134,7 @@ func main() {
 				}
 
 				// Evaluate used task time slice.
-				err, bss := bpfModule.GetBssData()
-				if err != nil {
-					log.Fatalf("GetBssData failed: %v", err)
-				}
-				nrWaiting := bss.Nr_queued + bss.Nr_scheduled + 1
+				nrWaiting := core.GetNrQueued() + core.GetNrScheduled() + 1
 				sliceNs := max(SLICE_NS_DEFAULT/nrWaiting, SLICE_NS_MIN)
 				task.SliceNs = sliceNs
 
@@ -182,14 +167,16 @@ func main() {
 				info.vruntime += vslice
 				minVruntime += vslice
 				task.Vtime = info.vruntime
-				taskInfoMap[t.Pid] = info
 
 				bpfModule.DispatchTask(task)
 
-				err = bpfModule.NotifyComplete(uint64(len(taskPool)))
+				err = core.NotifyCompleteSkel(uint64(taskPoolCount))
 				if err != nil {
 					log.Printf("NotifyComplete failed: %v", err)
 				}
+			} else {
+				// yield the cpu
+				time.Sleep(1 * time.Nanosecond)
 			}
 		}
 	}()
