@@ -15,7 +15,7 @@ import (
 const (
 	MAX_LATENCY_WEIGHT = 1000
 	SLICE_NS_DEFAULT   = 5000 * 1000 // 5ms
-	SLICE_NS_MIN       = 200 * 1000
+	SLICE_NS_MIN       = 500 * 1000
 	SCX_ENQ_WAKEUP     = 1
 	NSEC_PER_SEC       = 1000000000 // 1 second in nanoseconds
 )
@@ -97,10 +97,11 @@ func main() {
 	fmt.Println("GetUserSchedPid:", core.GetUserSchedPid())
 
 	go func() {
-		for !bpfModule.Stopped() {
-			DrainQueuedTask(bpfModule)
+		for true {
 			t := GetTaskFromPool()
-			if t != nil {
+			if t == nil {
+				DrainQueuedTask(bpfModule)
+			} else {
 				task := core.NewDispatchedTask(t)
 				err, cpu := bpfModule.SelectCPU(t)
 				if err != nil {
@@ -110,18 +111,19 @@ func main() {
 					cpu = core.RL_CPU_ANY
 				}
 
+				timeStp := now()
 				info, exists := taskInfoMap[t.Pid]
 				if !exists {
 					info = &TaskInfo{
 						prevExecRuntime: t.SumExecRuntime,
 						vruntime:        minVruntime,
 						nvcsw:           t.Nvcsw,
-						nvcswTs:         now(),
+						nvcswTs:         timeStp,
 					}
 					taskInfoMap[t.Pid] = info
 				}
 
-				deltaT := now() - info.nvcswTs
+				deltaT := timeStp - info.nvcswTs
 				if deltaT >= NSEC_PER_SEC {
 					deltaNvcsw := t.Nvcsw - info.nvcsw
 					avgNvcsw := uint64(0)
@@ -129,7 +131,7 @@ func main() {
 						avgNvcsw = min(deltaNvcsw*NSEC_PER_SEC/deltaT, 1000)
 					}
 					info.nvcsw = t.Nvcsw
-					info.nvcswTs = now()
+					info.nvcswTs = timeStp
 					info.avgNvcsw = calcAvg(info.avgNvcsw, avgNvcsw)
 				}
 
@@ -174,16 +176,25 @@ func main() {
 				if err != nil {
 					log.Printf("NotifyComplete failed: %v", err)
 				}
-			} else {
-				// yield the cpu
-				time.Sleep(1 * time.Nanosecond)
 			}
 		}
 	}()
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	<-signalChan
-	log.Println("receive os signal")
+	cont := true
+	for cont {
+		select {
+		case <-signalChan:
+			log.Println("receive os signal")
+			cont = false
+		default:
+			if bpfModule.Stopped() {
+				log.Println("bpfModule stopped")
+				cont = false
+			}
+		}
+	}
+
 	log.Println("scheduler exit")
 }

@@ -1,12 +1,13 @@
 package core
 
 import (
-	"bytes"
 	"encoding/binary"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 // Task queued for scheduling from the BPF component (see bpf_intf::queued_task_ctx).
@@ -25,8 +26,7 @@ type QueuedTask struct {
 func (s *Sched) DequeueTask(task *QueuedTask) {
 	select {
 	case t := <-s.queue:
-		buff := bytes.NewBuffer(t)
-		err := binary.Read(buff, binary.LittleEndian, task)
+		err := fastDecode(t, task)
 		if err != nil {
 			task.Pid = -1
 			return
@@ -67,9 +67,37 @@ func NewDispatchedTask(task *QueuedTask) *DispatchedTask {
 }
 
 func (s *Sched) DispatchTask(t *DispatchedTask) {
-	var task bytes.Buffer // Stand-in for a network connection
-	binary.Write(&task, binary.LittleEndian, t)
-	s.dispatch <- task.Bytes()
+	s.dispatch <- fastEncode(t)
+}
+
+func fastDecode(data []byte, task *QueuedTask) error {
+	if len(data) < int(unsafe.Sizeof(QueuedTask{})) {
+		return fmt.Errorf("data length is less than QueuedTask size")
+	}
+	task.Pid = int32(binary.LittleEndian.Uint32(data[0:4]))
+	task.Cpu = int32(binary.LittleEndian.Uint32(data[4:8]))
+	task.Flags = binary.LittleEndian.Uint64(data[8:16])
+	task.SumExecRuntime = binary.LittleEndian.Uint64(data[16:24])
+	task.Nvcsw = binary.LittleEndian.Uint64(data[24:32])
+	task.Weight = binary.LittleEndian.Uint64(data[32:40])
+	task.Slice = binary.LittleEndian.Uint64(data[40:48])
+	task.Vtime = binary.LittleEndian.Uint64(data[48:56])
+	task.CpuMaskCnt = binary.LittleEndian.Uint64(data[56:64])
+
+	return nil
+}
+
+func fastEncode(t *DispatchedTask) []byte {
+	data := make([]byte, 8*8) // 64 bytes
+
+	binary.LittleEndian.PutUint32(data[0:4], uint32(t.Pid))
+	binary.LittleEndian.PutUint32(data[4:8], uint32(t.Cpu))
+	binary.LittleEndian.PutUint64(data[8:16], t.Flags)
+	binary.LittleEndian.PutUint64(data[16:24], t.SliceNs)
+	binary.LittleEndian.PutUint64(data[24:32], t.Vtime)
+	binary.LittleEndian.PutUint64(data[32:40], t.CpuMaskCnt)
+
+	return data
 }
 
 func IsSMTActive() (bool, error) {
