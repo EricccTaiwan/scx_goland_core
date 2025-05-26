@@ -42,10 +42,68 @@ The scheduling policy is based on virtual runtime:
 ## Building
 
 Prerequisites:
-- Go 1.19+
+- Go 1.22+
 - LLVM/Clang 17+
 - libbpf
 - Linux kernel 6.12+ with sched_ext support
+
+## Usage
+
+### Setting Up Dependencies
+
+First, clone the required dependencies:
+
+```bash
+make dep
+```
+
+This will clone libbpf and the custom libbpfgo fork needed for the project.
+
+### Building the Scheduler
+
+Build the scheduler with:
+
+```bash
+make build
+```
+
+This compiles the BPF program, builds libbpf, generates the skeleton, and builds the Go application.
+
+### Testing the Scheduler
+
+To test the scheduler in a virtual environment using kernel v6.12.2:
+
+```bash
+make test
+```
+
+This uses `vng` (virtual kernel playground) to run the scheduler with the appropriate kernel version.
+
+### Running in Production
+
+To run the scheduler on your system:
+
+```bash
+sudo ./main
+```
+
+The scheduler will run until terminated with Ctrl+C (SIGINT) or SIGTERM.
+
+### Debugging
+
+If you need to inspect the BPF components, you can use:
+
+```bash
+sudo bpftool prog list            # List loaded BPF programs
+sudo bpftool map list             # List BPF maps
+sudo cat /sys/kernel/debug/tracing/trace_pipe # View BPF trace output
+```
+
+### Stress Testing by using `stress-ng`
+
+```
+stress-ng -c 20 --timeout 20s --metrics-brief
+```
 
 ## License
 
@@ -54,5 +112,3 @@ This software is distributed under the terms of the GNU General Public License v
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
-
-<!-- skeleton: bpftool gen skeleton main.bpf.o > scx_goland_core.skeleton.c -->

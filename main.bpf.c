@@ -1323,6 +1323,6 @@ SCX_OPS_DEFINE(goland,
 	       .init			= (void *)goland_init,
 	       .exit			= (void *)goland_exit,
 	       .flags			= SCX_OPS_ENQ_LAST | SCX_OPS_KEEP_BUILTIN_IDLE,
-	       .timeout_ms		= 5000,
+	       .timeout_ms		= 10000,
 	       .dispatch_max_batch	= MAX_DISPATCH_SLOT,
 	       .name			= "goland");

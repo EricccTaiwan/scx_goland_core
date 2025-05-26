@@ -26,7 +26,7 @@ build: clean $(BPF_OBJ) libbpf libbpf-uapi wrapper
 	$(CGOFLAG) go build -ldflags "-w -s $(STATIC)" main.go
 
 test: build
-	vng -r v6.12.2 -- ./main
+	vng -r v6.12.2 -- bash -c "./main"
 
 .PHONY: libbpf-uapi
 libbpf-uapi: $(LIBBPF_SRC)
