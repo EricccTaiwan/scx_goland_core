@@ -86,7 +86,7 @@ func LoadSched(objPath string) *Sched {
 			if err != nil {
 				panic(err)
 			}
-			rb.Poll(300)
+			rb.Poll(50)
 		} else if m.Name() == "dispatched" {
 			s.dispatch = make(chan []byte, 500)
 			urb, err := s.mod.InitUserRingBuf("dispatched", s.dispatch)
@@ -125,6 +125,8 @@ type task_cpu_arg struct {
 	flags uint64
 }
 
+var selectFailed error = fmt.Errorf("prog (selectCpu) not found")
+
 func (s *Sched) SelectCPU(t *QueuedTask) (error, int32) {
 	if s.selectCpu != nil {
 		arg := &task_cpu_arg{
@@ -143,11 +145,11 @@ func (s *Sched) SelectCPU(t *QueuedTask) (error, int32) {
 			return err, 0
 		}
 		if opt.RetVal > 2147483647 {
-			return nil, -1
+			return nil, RL_CPU_ANY
 		}
 		return nil, int32(opt.RetVal)
 	}
-	return fmt.Errorf("prog (selectCpu) not found"), 0
+	return selectFailed, 0
 }
 
 type domain_arg struct {
