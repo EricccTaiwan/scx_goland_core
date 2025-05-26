@@ -55,6 +55,12 @@ First, clone the required dependencies:
 
 ```bash
 make dep
+git submodule init
+git submodule sync
+git submodule update
+cd scx
+meson setup build --prefix ~
+meson compile -C build
 ```
 
 This will clone libbpf and the custom libbpfgo fork needed for the project.
