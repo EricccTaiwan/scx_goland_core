@@ -100,6 +100,36 @@ const volatile bool debug = true;
  */
 const volatile bool smt_enabled = true;
 
+
+struct exit_event {
+    pid_t pid;
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * sizeof(struct exit_event));
+} exit_rb SEC(".maps");
+
+s32 BPF_STRUCT_OPS(goland_exit_task, struct task_struct *p,
+	struct scx_init_task_args *args)
+{
+    pid_t pid = p->pid;
+	struct exit_event* e;
+
+	dbg_msg("exit: pid=%d",
+			pid);
+
+    e = bpf_ringbuf_reserve(&exit_rb, sizeof(*e), 0);
+    if (!e)
+        return 0;
+
+    e->pid = pid;
+
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+
 /*
  * Allocate/re-allocate a new cpumask.
  */
@@ -791,6 +821,17 @@ void BPF_STRUCT_OPS(goland_enqueue, struct task_struct *p, u64 enq_flags)
 		return;
 
 	/*
+	 * WORKAROUND: Dispatch user-space scheduler to the shared DSQ to avoid
+	 * starvation on user space scheduler goroutine(s).
+	 */
+	if (is_belong_usersched_task(p)) {
+		scx_bpf_dsq_insert(p, 9223372036854775810ULL, SCX_SLICE_DFL,
+			enq_flags | SCX_ENQ_PREEMPT);
+		// __sync_fetch_and_add(&nr_kernel_dispatches, 1);
+		return;
+	}
+
+	/*
 	 * Always dispatch per-CPU kthreads directly on their target CPU.
 	 *
 	 * This allows to prioritize critical kernel threads that may
@@ -801,17 +842,6 @@ void BPF_STRUCT_OPS(goland_enqueue, struct task_struct *p, u64 enq_flags)
 		// FIX ME: WHY SCX_DSQ_LOCAL equal to 0?
         scx_bpf_dsq_insert(p, 9223372036854775810ULL, SCX_SLICE_DFL,
 				   enq_flags | SCX_ENQ_PREEMPT);
-		__sync_fetch_and_add(&nr_kernel_dispatches, 1);
-		return;
-	}
-
-	/*
-	 * WORKAROUND: Dispatch user-space scheduler to the shared DSQ to avoid
-	 * starvation on user space scheduler goroutine(s).
-	 */
-	if (is_belong_usersched_task(p)) {
-		scx_bpf_dsq_insert_vtime(p, SHARED_DSQ,
-				SCX_SLICE_INF,  -1ULL, SCX_ENQ_PREEMPT);
 		__sync_fetch_and_add(&nr_kernel_dispatches, 1);
 		return;
 	}
@@ -1322,6 +1352,7 @@ SCX_OPS_DEFINE(goland,
 	       .init_task		= (void *)goland_init_task,
 	       .init			= (void *)goland_init,
 	       .exit			= (void *)goland_exit,
+		   .exit_task		= (void *)goland_exit_task,
 	       .flags			= SCX_OPS_ENQ_LAST | SCX_OPS_KEEP_BUILTIN_IDLE,
 	       .timeout_ms		= 10000,
 	       .dispatch_max_batch	= MAX_DISPATCH_SLOT,

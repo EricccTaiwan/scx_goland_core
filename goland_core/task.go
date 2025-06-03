@@ -23,6 +23,20 @@ type QueuedTask struct {
 	CpuMaskCnt     uint64 // cpumask generation counter (private)
 }
 
+func (s *Sched) ReceiveProcExitEvt() int {
+	select {
+	case e := <-s.exitEvt:
+		if len(e) < int(unsafe.Sizeof(int32(0))) {
+			log.Printf("ReceiveProcExitEvt: data length is less than int32 size, %d", len(e))
+			return -1
+		}
+		pid := int(binary.LittleEndian.Uint32(e[0:4]))
+		return pid
+	default:
+		return -1
+	}
+}
+
 func (s *Sched) DequeueTask(task *QueuedTask) {
 	select {
 	case t := <-s.queue:

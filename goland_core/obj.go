@@ -22,6 +22,7 @@ type Sched struct {
 	structOps  *bpf.BPFMap
 	queue      chan []byte // The map containing tasks that are queued to user space from the kernel.
 	dispatch   chan []byte
+	exitEvt    chan []byte
 	selectCpu  *bpf.BPFProg
 	siblingCpu *bpf.BPFProg
 }
@@ -94,6 +95,13 @@ func LoadSched(objPath string) *Sched {
 				panic(err)
 			}
 			urb.Start()
+		} else if m.Name() == "exit_rb" {
+			s.exitEvt = make(chan []byte, 256)
+			erb, err := s.mod.InitRingBuf("exit_rb", s.exitEvt)
+			if err != nil {
+				panic(err)
+			}
+			erb.Poll(300)
 		}
 		if m.Type().String() == "BPF_MAP_TYPE_STRUCT_OPS" {
 			s.structOps = m
