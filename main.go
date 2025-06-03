@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -198,7 +199,6 @@ func main() {
 	if err != nil {
 		log.Printf("AssignUserSchedPid failed: %v", err)
 	}
-	log.Printf("pid: %v", pid)
 
 	err = util.InitCacheDomains(bpfModule)
 	if err != nil {
@@ -209,7 +209,7 @@ func main() {
 		log.Panicf("bpfModule attach failed: %v", err)
 	}
 
-	log.Printf("GetUserSchedPid: %v", core.GetUserSchedPid())
+	log.Printf("UserSched's Pid: %v", core.GetUserSchedPid())
 
 	go func() {
 		var t *core.QueuedTask
@@ -217,25 +217,19 @@ func main() {
 		var err error
 		var cpu int32
 		var info *TaskInfo
-		sleepCnt := time.Duration(1)
 
 		for true {
 			t = GetTaskFromPool()
 			if t == nil {
 				if num := DrainQueuedTask(bpfModule); num == 0 {
-					for {
+					for i := 0; i < 10; i++ {
 						if pid := bpfModule.ReceiveProcExitEvt(); pid != -1 {
 							delete(taskInfoMap, int32(pid))
 						} else {
 							break
 						}
 					}
-					// No tasks in the pool, wait for new tasks.
-					time.Sleep(100 * time.Microsecond)
-					sleepCnt++
-					continue
-				} else {
-					sleepCnt = 1
+					bpfModule.BlockTilReadyForDequeue()
 				}
 			} else if t.Pid != -1 {
 				task = core.NewDispatchedTask(t)
@@ -270,6 +264,12 @@ func main() {
 		default:
 			if bpfModule.Stopped() {
 				log.Println("bpfModule stopped")
+				cmd := exec.Command("bpftool", []string{"map", "dump", "name", "main_bpf.data"}...)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				if err := cmd.Run(); err != nil {
+					log.Printf("bpftool map dump failed: %v", err)
+				}
 				cont = false
 			} else {
 				time.Sleep(1 * time.Second)

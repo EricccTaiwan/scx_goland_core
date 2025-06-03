@@ -37,6 +37,14 @@ func (s *Sched) ReceiveProcExitEvt() int {
 	}
 }
 
+func (s *Sched) BlockTilReadyForDequeue() {
+	select {
+	case t := <-s.queue:
+		s.queue <- t
+		return
+	}
+}
+
 func (s *Sched) DequeueTask(task *QueuedTask) {
 	select {
 	case t := <-s.queue:
