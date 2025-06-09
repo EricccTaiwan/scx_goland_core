@@ -45,6 +45,16 @@ func (s *Sched) BlockTilReadyForDequeue() {
 	}
 }
 
+func (s *Sched) ReadyForDequeue() bool {
+	select {
+	case t := <-s.queue:
+		s.queue <- t
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Sched) DequeueTask(task *QueuedTask) {
 	select {
 	case t := <-s.queue:
