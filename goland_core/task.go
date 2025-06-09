@@ -88,8 +88,12 @@ func NewDispatchedTask(task *QueuedTask) *DispatchedTask {
 	}
 }
 
-func (s *Sched) DispatchTask(t *DispatchedTask) {
+func (s *Sched) DispatchTask(t *DispatchedTask) error {
+	if err := s.urb.Error(); err != nil {
+		return err
+	}
 	s.dispatch <- fastEncode(t)
+	return nil
 }
 
 func fastDecode(data []byte, task *QueuedTask) error {

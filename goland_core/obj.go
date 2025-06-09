@@ -25,6 +25,8 @@ type Sched struct {
 	exitEvt    chan []byte
 	selectCpu  *bpf.BPFProg
 	siblingCpu *bpf.BPFProg
+	urb        *bpf.UserRingBuffer
+	erb        *bpf.RingBuffer
 }
 
 func init() {
@@ -82,26 +84,26 @@ func LoadSched(objPath string) *Sched {
 		} else if m.Name() == "main_bpf.data" {
 			s.uei = &UeiMap{m}
 		} else if m.Name() == "queued" {
-			s.queue = make(chan []byte, 500)
+			s.queue = make(chan []byte, 4096)
 			rb, err := s.mod.InitRingBuf("queued", s.queue)
 			if err != nil {
 				panic(err)
 			}
 			rb.Poll(50)
 		} else if m.Name() == "dispatched" {
-			s.dispatch = make(chan []byte, 500)
-			urb, err := s.mod.InitUserRingBuf("dispatched", s.dispatch)
+			s.dispatch = make(chan []byte, 4096)
+			s.urb, err = s.mod.InitUserRingBuf("dispatched", s.dispatch)
 			if err != nil {
 				panic(err)
 			}
-			urb.Start()
+			s.urb.Start()
 		} else if m.Name() == "exit_rb" {
 			s.exitEvt = make(chan []byte, 256)
-			erb, err := s.mod.InitRingBuf("exit_rb", s.exitEvt)
+			s.erb, err = s.mod.InitRingBuf("exit_rb", s.exitEvt)
 			if err != nil {
 				panic(err)
 			}
-			erb.Poll(300)
+			s.erb.Poll(300)
 		}
 		if m.Type().String() == "BPF_MAP_TYPE_STRUCT_OPS" {
 			s.structOps = m
