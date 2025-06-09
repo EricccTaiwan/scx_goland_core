@@ -32,9 +32,6 @@ func (s *Sched) ReceiveProcExitEvt() int {
 		}
 		pid := int(binary.LittleEndian.Uint32(e[0:4]))
 		return pid
-	case err := <-s.exitEvt:
-		log.Printf("ReceiveProcExitEvt error: %f", err)
-		return -1
 	default:
 		return -1
 	}
