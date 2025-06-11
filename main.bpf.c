@@ -87,7 +87,7 @@ volatile u64 nr_user_dispatches, nr_kernel_dispatches,
 volatile u64 nr_failed_dispatches, nr_sched_congested;
 
  /* Report additional debugging information */
-const volatile bool debug = true;
+const volatile bool debug = false;
 
 /* Allow to use bpf_printk() only when @debug is set */
 #define dbg_msg(_fmt, ...) do {						\
@@ -350,6 +350,14 @@ static inline bool is_belong_usersched_task(const struct task_struct *p)
 static inline bool is_kthread(const struct task_struct *p)
 {
 	return p->flags & PF_KTHREAD;
+}
+
+/*
+ * Return true if the target task @p is a kworker thread.
+ */
+static inline bool is_kworker(const struct task_struct *p)
+{
+	return p->flags & PF_WQ_WORKER;
 }
 
 /*
@@ -825,8 +833,8 @@ void BPF_STRUCT_OPS(goland_enqueue, struct task_struct *p, u64 enq_flags)
 	 * starvation on user space scheduler goroutine(s).
 	 */
 	if (is_belong_usersched_task(p)) {
-		scx_bpf_dsq_insert(p, 9223372036854775810ULL, SCX_SLICE_DFL,
-			enq_flags | SCX_ENQ_PREEMPT);
+		scx_bpf_dsq_insert_vtime(p, SHARED_DSQ+1, SCX_SLICE_INF, 0, enq_flags | SCX_ENQ_PREEMPT);
+		kick_task_cpu(p);
 		// __sync_fetch_and_add(&nr_kernel_dispatches, 1);
 		return;
 	}
@@ -843,6 +851,13 @@ void BPF_STRUCT_OPS(goland_enqueue, struct task_struct *p, u64 enq_flags)
         scx_bpf_dsq_insert(p, 9223372036854775810ULL, SCX_SLICE_DFL,
 				   enq_flags | SCX_ENQ_PREEMPT);
 		__sync_fetch_and_add(&nr_kernel_dispatches, 1);
+		return;
+	}
+
+	if (is_kworker(p) && bpf_strncmp(p->comm, TASK_COMM_LEN, "events_unbound")) {
+		scx_bpf_dsq_insert_vtime(p, SHARED_DSQ, SCX_SLICE_DFL, 0, enq_flags);
+		__sync_fetch_and_add(&nr_kernel_dispatches, 1);
+		kick_task_cpu(p);
 		return;
 	}
 
@@ -973,6 +988,9 @@ void BPF_STRUCT_OPS(goland_dispatch, s32 cpu, struct task_struct *prev)
 	 * Consume a task from the shared DSQ.
 	 */
 	if (scx_bpf_dsq_move_to_local(SHARED_DSQ))
+		return;
+
+	if (scx_bpf_dsq_move_to_local(SHARED_DSQ+1))
 		return;
 
 	/*
@@ -1247,6 +1265,12 @@ static int dsq_init(void)
 		return err;
 	}
 
+	err = scx_bpf_create_dsq(SHARED_DSQ+1, -1);
+	if (err) {
+		scx_bpf_error("failed to create shared DSQ for user sched: %d", err);
+		return err;
+	}
+
 	return 0;
 }
 
@@ -1354,6 +1378,6 @@ SCX_OPS_DEFINE(goland,
 	       .exit			= (void *)goland_exit,
 		   .exit_task		= (void *)goland_exit_task,
 	       .flags			= SCX_OPS_ENQ_LAST | SCX_OPS_KEEP_BUILTIN_IDLE,
-	       .timeout_ms		= 10000,
+	       .timeout_ms		= 5000,
 	       .dispatch_max_batch	= MAX_DISPATCH_SLOT,
 	       .name			= "goland");

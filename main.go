@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +19,7 @@ const (
 	SLICE_NS_MIN       = 500 * 1000
 	SCX_ENQ_WAKEUP     = 1
 	NSEC_PER_SEC       = 1000000000 // 1 second in nanoseconds
+	PF_WQ_WORKER       = 0x00000020
 )
 
 const taskPoolSize = 4096
@@ -35,24 +37,29 @@ func DrainQueuedTask(s *core.Sched) int {
 			return count
 		}
 		updatedEnqueueTask(s, &newQueuedTask)
+		mapLock.RLock()
 		t := Task{
 			QueuedTask: &newQueuedTask,
 			Deadline:   taskInfoMap[newQueuedTask.Pid].vruntime,
 			Timestamp:  taskInfoMap[newQueuedTask.Pid].nvcswTs,
 		}
+		mapLock.RUnlock()
 		InsertTaskToPool(t)
 		count++
 	}
 	return 0
 }
 
+var timeout = uint64(3 * NSEC_PER_SEC)
+
 func updatedEnqueueTask(s *core.Sched, t *core.QueuedTask) {
 	var timeStp, deltaT, avgNvcsw, deltaNvcsw, slice,
 		minVruntimeLimit, weightMultiplier, baseWeight,
-		latencyWeight, nrWaiting, sliceNs, vslice uint64
+		latencyWeight, vslice uint64
 	var info *TaskInfo
 	var exists bool
 	timeStp = now()
+	mapLock.Lock()
 	info, exists = taskInfoMap[t.Pid]
 	if !exists {
 		info = &TaskInfo{
@@ -63,28 +70,22 @@ func updatedEnqueueTask(s *core.Sched, t *core.QueuedTask) {
 		}
 		taskInfoMap[t.Pid] = info
 	}
+	mapLock.Unlock()
 
 	deltaT = timeStp - info.nvcswTs
 	if deltaT >= NSEC_PER_SEC {
 		deltaNvcsw = t.Nvcsw - info.nvcsw
 		avgNvcsw = uint64(0)
-		if deltaT > 0 {
-			avgNvcsw = min(deltaNvcsw*NSEC_PER_SEC/deltaT, 1000)
-		}
+		avgNvcsw = min(deltaNvcsw*NSEC_PER_SEC/deltaT, 1000)
 		info.nvcsw = t.Nvcsw
 		info.nvcswTs = timeStp
 		info.avgNvcsw = calcAvg(info.avgNvcsw, avgNvcsw)
 	}
 
 	// Evaluate used task time slice.
-	nrWaiting = core.GetNrQueued() + core.GetNrScheduled() + 1
-	sliceNs = max(SLICE_NS_DEFAULT/nrWaiting, SLICE_NS_MIN)
-	info.sliceNs = sliceNs
-
-	// Evaluate used task time slice.
 	slice = min(
 		saturating_sub(t.SumExecRuntime, info.prevExecRuntime),
-		sliceNs,
+		SLICE_NS_DEFAULT,
 	)
 	// Update total task cputime.
 	info.prevExecRuntime = t.SumExecRuntime
@@ -101,8 +102,7 @@ func updatedEnqueueTask(s *core.Sched, t *core.QueuedTask) {
 	}
 	latencyWeight = (baseWeight * weightMultiplier) + 1
 
-	minVruntimeLimit = saturating_sub(minVruntime, sliceNs*latencyWeight)
-
+	minVruntimeLimit = saturating_sub(minVruntime, SLICE_NS_DEFAULT*latencyWeight)
 	if info.vruntime < minVruntimeLimit {
 		info.vruntime = minVruntimeLimit
 	}
@@ -129,10 +129,10 @@ type TaskInfo struct {
 	avgNvcsw        uint64
 	nvcsw           uint64
 	nvcswTs         uint64
-	sliceNs         uint64
 }
 
 var taskInfoMap = make(map[int32]*TaskInfo)
+var mapLock sync.RWMutex
 var minVruntime uint64 = 0 // global vruntime
 
 func now() uint64 {
@@ -212,6 +212,18 @@ func main() {
 	log.Printf("UserSched's Pid: %v", core.GetUserSchedPid())
 
 	go func() {
+		for {
+			if pid := bpfModule.ReceiveProcExitEvt(); pid != -1 {
+				mapLock.Lock()
+				delete(taskInfoMap, int32(pid))
+				mapLock.Unlock()
+			} else {
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+	}()
+
+	go func() {
 		var t *core.QueuedTask
 		var task *core.DispatchedTask
 		var err error
@@ -221,15 +233,10 @@ func main() {
 		for true {
 			t = GetTaskFromPool()
 			if t == nil {
-				if num := DrainQueuedTask(bpfModule); num == 0 {
-					for i := 0; i < 10; i++ {
-						if pid := bpfModule.ReceiveProcExitEvt(); pid != -1 {
-							delete(taskInfoMap, int32(pid))
-						} else {
-							break
-						}
+				for uint64(taskPoolCount) < 10 {
+					if num := DrainQueuedTask(bpfModule); num == 0 {
+						bpfModule.BlockTilReadyForDequeue()
 					}
-					bpfModule.BlockTilReadyForDequeue()
 				}
 			} else if t.Pid != -1 {
 				task = core.NewDispatchedTask(t)
@@ -238,12 +245,20 @@ func main() {
 					log.Printf("SelectCPU failed: %v", err)
 				}
 
+				mapLock.RLock()
 				info = taskInfoMap[t.Pid]
+				mapLock.RUnlock()
+				// Evaluate used task time slice.
+				nrWaiting := core.GetNrQueued() + core.GetNrScheduled() + 1
 				task.Vtime = info.vruntime
-				task.SliceNs = info.sliceNs
+				task.SliceNs = max(SLICE_NS_DEFAULT/nrWaiting, SLICE_NS_MIN)
 				task.Cpu = cpu
 
-				bpfModule.DispatchTask(task)
+				err = bpfModule.DispatchTask(task)
+				if err != nil {
+					log.Printf("DispatchTask failed: %v", err)
+					continue
+				}
 
 				err = core.NotifyCompleteSkel(uint64(taskPoolCount))
 				if err != nil {
@@ -256,12 +271,13 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	cont := true
+	timer := time.NewTicker(1 * time.Second)
 	for cont {
 		select {
 		case <-signalChan:
 			log.Println("receive os signal")
 			cont = false
-		default:
+		case <-timer.C:
 			if bpfModule.Stopped() {
 				log.Println("bpfModule stopped")
 				cmd := exec.Command("bpftool", []string{"map", "dump", "name", "main_bpf.data"}...)
@@ -271,11 +287,9 @@ func main() {
 					log.Printf("bpftool map dump failed: %v", err)
 				}
 				cont = false
-			} else {
-				time.Sleep(1 * time.Second)
 			}
 		}
 	}
-
+	timer.Stop()
 	log.Println("scheduler exit")
 }
