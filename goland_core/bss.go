@@ -15,18 +15,18 @@ import (
 import "C"
 
 type BssData struct {
-	Usersched_pid        uint32
-	Paid                 uint32
-	Nr_queued            uint64
-	Nr_scheduled         uint64
-	Nr_running           uint64
-	Nr_online_cpus       uint64
-	Nr_user_dispatches   uint64
-	Nr_kernel_dispatches uint64
-	Nr_cancel_dispatches uint64
-	Nr_bounce_dispatches uint64
-	Nr_failed_dispatches uint64
-	Nr_sched_congested   uint64
+	Usersched_pid        uint32 `json:"usersched_pid"` // The PID of the userspace scheduler
+	Paid                 uint32 `json:"-"`
+	Nr_queued            uint64 `json:"nr_queued"`            // Number of tasks queued in the userspace scheduler
+	Nr_scheduled         uint64 `json:"nr_scheduled"`         // Number of tasks scheduled by the userspace scheduler
+	Nr_running           uint64 `json:"nr_running"`           // Number of tasks currently running in the userspace scheduler
+	Nr_online_cpus       uint64 `json:"nr_online_cpus"`       // Number of online CPUs in the system
+	Nr_user_dispatches   uint64 `json:"nr_user_dispatches"`   // Number of user-space dispatches
+	Nr_kernel_dispatches uint64 `json:"nr_kernel_dispatches"` // Number of kernel-space dispatches
+	Nr_cancel_dispatches uint64 `json:"nr_cancel_dispatches"` // Number of cancelled dispatches
+	Nr_bounce_dispatches uint64 `json:"nr_bounce_dispatches"` // Number of bounce dispatches
+	Nr_failed_dispatches uint64 `json:"nr_failed_dispatches"` // Number of failed dispatches
+	Nr_sched_congested   uint64 `json:"nr_sched_congested"`   // Number of times the scheduler was congested
 }
 
 func (data BssData) String() string {
@@ -67,22 +67,22 @@ type BssMap struct {
 	*bpf.BPFMap
 }
 
-func (s *Sched) GetBssData() (error, BssData) {
+func (s *Sched) GetBssData() (BssData, error) {
 	if s.bss == nil {
-		return fmt.Errorf("BssMap is nil"), BssData{}
+		return BssData{}, fmt.Errorf("BssMap is nil")
 	}
 	i := 0
 	b, err := s.bss.BPFMap.GetValue(unsafe.Pointer(&i))
 	if err != nil {
-		return err, BssData{}
+		return BssData{}, err
 	}
 	var bss BssData
 	buff := bytes.NewBuffer(b)
 	err = binary.Read(buff, binary.LittleEndian, &bss)
 	if err != nil {
-		return err, BssData{}
+		return BssData{}, err
 	}
-	return nil, bss
+	return bss, nil
 }
 
 func (s *Sched) AssignUserSchedPid(pid int) error {
