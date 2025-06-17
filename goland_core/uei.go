@@ -30,7 +30,7 @@ type UeiMap struct {
 }
 
 func (s *Sched) Stopped() bool {
-	err, uei := s.GetUeiData()
+	uei, err := s.GetUeiData()
 	if err != nil {
 		log.Printf("uei: %v", err)
 		return true
