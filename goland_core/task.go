@@ -39,7 +39,10 @@ func (s *Sched) ReceiveProcExitEvt() int {
 
 func (s *Sched) BlockTilReadyForDequeue() {
 	select {
-	case t := <-s.queue:
+	case t, ok := <-s.queue:
+		if !ok {
+			return
+		}
 		s.queue <- t
 		return
 	}
@@ -47,7 +50,10 @@ func (s *Sched) BlockTilReadyForDequeue() {
 
 func (s *Sched) ReadyForDequeue() bool {
 	select {
-	case t := <-s.queue:
+	case t, ok := <-s.queue:
+		if !ok {
+			return false
+		}
 		s.queue <- t
 		return true
 	default:
