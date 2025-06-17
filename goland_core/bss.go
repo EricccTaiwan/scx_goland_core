@@ -53,12 +53,12 @@ func GetNrScheduled() uint64 {
 	return uint64(C.get_nr_scheduled())
 }
 
-func NotifyCompleteSkel(nr_pending uint64) error {
+func NotifyComplete(nr_pending uint64) error {
 	C.notify_complete(C.u64(nr_pending))
 	return nil
 }
 
-func (s *Sched) SubNrQueuedSkel() error {
+func (s *Sched) SubNrQueued() error {
 	C.sub_nr_queued()
 	return nil
 }
@@ -83,56 +83,6 @@ func (s *Sched) GetBssData() (error, BssData) {
 		return err, BssData{}
 	}
 	return nil, bss
-}
-
-// Deprecated: use NotifyCompleteSkel instead
-func (s *Sched) NotifyComplete(nr_pending uint64, data *BssData) error {
-	if s.bss == nil {
-		return fmt.Errorf("BssMap is nil")
-	}
-	if data != nil {
-		data.Nr_scheduled = nr_pending
-		i := 0
-		return s.bss.BPFMap.Update(unsafe.Pointer(&i), unsafe.Pointer(data))
-	} else {
-		i := 0
-		err, bss := s.GetBssData()
-		bss.Nr_scheduled = nr_pending
-		if err != nil {
-			return err
-		}
-		return s.bss.BPFMap.Update(unsafe.Pointer(&i), unsafe.Pointer(&bss))
-	}
-}
-
-// Deprecated: use SubNrQueuedSkel instead
-func (s *Sched) SubNrQueued() error {
-	if s.bss == nil {
-		return fmt.Errorf("BssMap is nil")
-	}
-	err, bss := s.GetBssData()
-	if err != nil {
-		return err
-	}
-	var val uint64 = 0
-	if bss.Nr_queued > 1 {
-		val = bss.Nr_queued - 1
-	}
-	return s.AssignNrQueued(val)
-}
-
-// Deprecated: used by the deprecated api <SubNrQueued>
-func (s *Sched) AssignNrQueued(n uint64) error {
-	if s.bss == nil {
-		return fmt.Errorf("BssMap is nil")
-	}
-	i := 0
-	err, bss := s.GetBssData()
-	if err != nil {
-		return err
-	}
-	bss.Nr_queued = n
-	return s.bss.BPFMap.Update(unsafe.Pointer(&i), unsafe.Pointer(&bss))
 }
 
 func (s *Sched) AssignUserSchedPid(pid int) error {

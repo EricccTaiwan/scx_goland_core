@@ -42,20 +42,20 @@ func (s *Sched) Stopped() bool {
 	return false
 }
 
-func (s *Sched) GetUeiData() (error, UserExitInfo) {
+func (s *Sched) GetUeiData() (UserExitInfo, error) {
 	if s.uei == nil {
-		return fmt.Errorf("UeiMap is nil"), UserExitInfo{}
+		return UserExitInfo{}, fmt.Errorf("UeiMap is nil")
 	}
 	i := 0
 	b, err := s.uei.BPFMap.GetValue(unsafe.Pointer(&i))
 	if err != nil {
-		return err, UserExitInfo{}
+		return UserExitInfo{}, err
 	}
 	var uei UserExitInfo
 	buff := bytes.NewBuffer(b)
 	err = binary.Read(buff, binary.LittleEndian, &uei)
 	if err != nil {
-		return err, UserExitInfo{}
+		return UserExitInfo{}, err
 	}
-	return nil, uei
+	return uei, nil
 }
