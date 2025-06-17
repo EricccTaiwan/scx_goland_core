@@ -21,8 +21,8 @@ type UserExitInfo struct {
 	Kind     int32
 	Paid     uint32
 	ExitCode int64
-	Reason   [UEI_REASON_LEN]C.char
-	Message  [UEI_MSG_LEN]C.char
+	reason   [UEI_REASON_LEN]C.char
+	message  [UEI_MSG_LEN]C.char
 }
 
 type UeiMap struct {
@@ -58,4 +58,12 @@ func (s *Sched) GetUeiData() (UserExitInfo, error) {
 		return UserExitInfo{}, err
 	}
 	return uei, nil
+}
+
+func (uei *UserExitInfo) Reason() string {
+	return C.GoString(&uei.reason[0])
+}
+
+func (uei *UserExitInfo) Message() string {
+	return C.GoString(&uei.message[0])
 }
