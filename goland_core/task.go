@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -37,13 +38,15 @@ func (s *Sched) ReceiveProcExitEvt() int {
 	}
 }
 
-func (s *Sched) BlockTilReadyForDequeue() {
+func (s *Sched) BlockTilReadyForDequeue(ctx context.Context) {
 	select {
 	case t, ok := <-s.queue:
 		if !ok {
 			return
 		}
 		s.queue <- t
+		return
+	case <-ctx.Done():
 		return
 	}
 }

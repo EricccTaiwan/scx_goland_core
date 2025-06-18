@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/exec"
@@ -235,7 +236,7 @@ func main() {
 			if t == nil {
 				for uint64(taskPoolCount) < 10 {
 					if num := DrainQueuedTask(bpfModule); num == 0 {
-						bpfModule.BlockTilReadyForDequeue()
+						bpfModule.BlockTilReadyForDequeue(context.TODO())
 					}
 				}
 			} else if t.Pid != -1 {

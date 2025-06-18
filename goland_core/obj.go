@@ -199,5 +199,7 @@ func (s *Sched) Attach() error {
 }
 
 func (s *Sched) Close() {
+	s.erb.Close()
+	s.urb.Close()
 	s.mod.Close()
 }
