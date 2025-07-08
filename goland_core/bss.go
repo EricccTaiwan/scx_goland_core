@@ -15,22 +15,21 @@ import (
 import "C"
 
 type BssData struct {
-	Usersched_pid        uint32 `json:"usersched_pid"` // The PID of the userspace scheduler
-	Paid                 uint32 `json:"-"`
-	Nr_queued            uint64 `json:"nr_queued"`            // Number of tasks queued in the userspace scheduler
-	Nr_scheduled         uint64 `json:"nr_scheduled"`         // Number of tasks scheduled by the userspace scheduler
-	Nr_running           uint64 `json:"nr_running"`           // Number of tasks currently running in the userspace scheduler
-	Nr_online_cpus       uint64 `json:"nr_online_cpus"`       // Number of online CPUs in the system
-	Nr_user_dispatches   uint64 `json:"nr_user_dispatches"`   // Number of user-space dispatches
-	Nr_kernel_dispatches uint64 `json:"nr_kernel_dispatches"` // Number of kernel-space dispatches
-	Nr_cancel_dispatches uint64 `json:"nr_cancel_dispatches"` // Number of cancelled dispatches
-	Nr_bounce_dispatches uint64 `json:"nr_bounce_dispatches"` // Number of bounce dispatches
-	Nr_failed_dispatches uint64 `json:"nr_failed_dispatches"` // Number of failed dispatches
-	Nr_sched_congested   uint64 `json:"nr_sched_congested"`   // Number of times the scheduler was congested
+	Usersched_last_run_at uint64 `json:"usersched_last_run_at"` // The PID of the userspace scheduler
+	Nr_queued             uint64 `json:"nr_queued"`             // Number of tasks queued in the userspace scheduler
+	Nr_scheduled          uint64 `json:"nr_scheduled"`          // Number of tasks scheduled by the userspace scheduler
+	Nr_running            uint64 `json:"nr_running"`            // Number of tasks currently running in the userspace scheduler
+	Nr_online_cpus        uint64 `json:"nr_online_cpus"`        // Number of online CPUs in the system
+	Nr_user_dispatches    uint64 `json:"nr_user_dispatches"`    // Number of user-space dispatches
+	Nr_kernel_dispatches  uint64 `json:"nr_kernel_dispatches"`  // Number of kernel-space dispatches
+	Nr_cancel_dispatches  uint64 `json:"nr_cancel_dispatches"`  // Number of cancelled dispatches
+	Nr_bounce_dispatches  uint64 `json:"nr_bounce_dispatches"`  // Number of bounce dispatches
+	Nr_failed_dispatches  uint64 `json:"nr_failed_dispatches"`  // Number of failed dispatches
+	Nr_sched_congested    uint64 `json:"nr_sched_congested"`    // Number of times the scheduler was congested
 }
 
 func (data BssData) String() string {
-	return fmt.Sprintf("Usersched_pid: %v, Nr_queued: %v ", data.Usersched_pid, data.Nr_queued) +
+	return fmt.Sprintf("Usersched_last_run_at: %v, Nr_queued: %v ", data.Usersched_last_run_at, data.Nr_queued) +
 		fmt.Sprintf("Nr_scheduled: %v, Nr_running: %v ", data.Nr_scheduled, data.Nr_running) +
 		fmt.Sprintf("Nr_online_cpus: %v, Nr_user_dispatches: %v ", data.Nr_online_cpus, data.Nr_user_dispatches) +
 		fmt.Sprintf("Nr_kernel_dispatches: %v, Nr_cancel_dispatches: %v ", data.Nr_kernel_dispatches, data.Nr_cancel_dispatches) +
@@ -83,14 +82,4 @@ func (s *Sched) GetBssData() (BssData, error) {
 		return BssData{}, err
 	}
 	return bss, nil
-}
-
-func (s *Sched) AssignUserSchedPid(pid int) error {
-	if s.bss == nil {
-		return fmt.Errorf("BssMap is nil")
-	}
-	i := 0
-	return s.bss.BPFMap.Update(unsafe.Pointer(&i), unsafe.Pointer(&BssData{
-		Usersched_pid: uint32(pid),
-	}))
 }

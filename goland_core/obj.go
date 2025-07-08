@@ -19,10 +19,10 @@ type Sched struct {
 	mod        *bpf.Module
 	bss        *BssMap
 	uei        *UeiMap
+	rodata     *RodataMap
 	structOps  *bpf.BPFMap
 	queue      chan []byte // The map containing tasks that are queued to user space from the kernel.
 	dispatch   chan []byte
-	exitEvt    chan []byte
 	selectCpu  *bpf.BPFProg
 	siblingCpu *bpf.BPFProg
 	urb        *bpf.UserRingBuffer
@@ -42,13 +42,21 @@ func LoadSched(objPath string) *Sched {
 	if err != nil {
 		panic(err)
 	}
-	if err := bpfModule.BPFLoadExistedObject(obj); err != nil {
+	if err := bpfModule.BPFReplaceExistedObject(obj); err != nil {
 		panic(err)
 	}
 
 	s := &Sched{
 		mod: bpfModule,
 	}
+
+	return s
+}
+
+func (s *Sched) Start() {
+	var err error
+	bpfModule := s.mod
+	bpfModule.BPFLoadObject()
 	iters := bpfModule.Iterator()
 	for {
 		prog := iters.NextProgram()
@@ -83,6 +91,8 @@ func LoadSched(objPath string) *Sched {
 			s.bss = &BssMap{m}
 		} else if m.Name() == "main_bpf.data" {
 			s.uei = &UeiMap{m}
+		} else if m.Name() == "main_bpf.rodata" {
+			s.rodata = &RodataMap{m}
 		} else if m.Name() == "queued" {
 			s.queue = make(chan []byte, 4096)
 			rb, err := s.mod.InitRingBuf("queued", s.queue)
@@ -97,13 +107,6 @@ func LoadSched(objPath string) *Sched {
 				panic(err)
 			}
 			s.urb.Start()
-		} else if m.Name() == "exit_rb" {
-			s.exitEvt = make(chan []byte, 256)
-			s.erb, err = s.mod.InitRingBuf("exit_rb", s.exitEvt)
-			if err != nil {
-				panic(err)
-			}
-			s.erb.Poll(300)
 		}
 		if m.Type().String() == "BPF_MAP_TYPE_STRUCT_OPS" {
 			s.structOps = m
@@ -125,8 +128,6 @@ func LoadSched(objPath string) *Sched {
 			s.siblingCpu = prog
 		}
 	}
-
-	return s
 }
 
 type task_cpu_arg struct {
