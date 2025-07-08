@@ -26,7 +26,6 @@ type Sched struct {
 	selectCpu  *bpf.BPFProg
 	siblingCpu *bpf.BPFProg
 	urb        *bpf.UserRingBuffer
-	erb        *bpf.RingBuffer
 }
 
 func init() {
@@ -200,7 +199,6 @@ func (s *Sched) Attach() error {
 }
 
 func (s *Sched) Close() {
-	s.erb.Close()
 	s.urb.Close()
 	s.mod.Close()
 }
