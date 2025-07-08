@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -37,14 +36,11 @@ func DrainQueuedTask(s *core.Sched) int {
 		if newQueuedTask.Pid == -1 {
 			return count
 		}
-		updatedEnqueueTask(s, &newQueuedTask)
-		mapLock.RLock()
+		deadline := updatedEnqueueTask(s, &newQueuedTask)
 		t := Task{
 			QueuedTask: &newQueuedTask,
-			Deadline:   taskInfoMap[newQueuedTask.Pid].vruntime,
-			Timestamp:  taskInfoMap[newQueuedTask.Pid].nvcswTs,
+			Deadline:   deadline,
 		}
-		mapLock.RUnlock()
 		InsertTaskToPool(t)
 		count++
 	}
@@ -53,63 +49,19 @@ func DrainQueuedTask(s *core.Sched) int {
 
 var timeout = uint64(3 * NSEC_PER_SEC)
 
-func updatedEnqueueTask(s *core.Sched, t *core.QueuedTask) {
-	var timeStp, deltaT, avgNvcsw, deltaNvcsw, slice,
-		minVruntimeLimit, weightMultiplier, baseWeight,
-		latencyWeight, vslice uint64
-	var info *TaskInfo
-	var exists bool
-	timeStp = now()
-	mapLock.Lock()
-	info, exists = taskInfoMap[t.Pid]
-	if !exists {
-		info = &TaskInfo{
-			prevExecRuntime: t.SumExecRuntime,
-			vruntime:        minVruntime,
-			nvcsw:           t.Nvcsw,
-			nvcswTs:         timeStp,
-		}
-		taskInfoMap[t.Pid] = info
+func updatedEnqueueTask(s *core.Sched, t *core.QueuedTask) uint64 {
+	if minVruntime < t.Vtime {
+		minVruntime = t.Vtime
 	}
-	mapLock.Unlock()
-
-	deltaT = timeStp - info.nvcswTs
-	if deltaT >= NSEC_PER_SEC {
-		deltaNvcsw = t.Nvcsw - info.nvcsw
-		avgNvcsw = uint64(0)
-		avgNvcsw = min(deltaNvcsw*NSEC_PER_SEC/deltaT, 1000)
-		info.nvcsw = t.Nvcsw
-		info.nvcswTs = timeStp
-		info.avgNvcsw = calcAvg(info.avgNvcsw, avgNvcsw)
+	minVruntimeLocal := saturating_sub(minVruntime, SLICE_NS_DEFAULT)
+	if t.Vtime == 0 {
+		t.Vtime = minVruntimeLocal + (SLICE_NS_DEFAULT * 100 / t.Weight)
+	} else if t.Vtime < minVruntimeLocal {
+		t.Vtime = minVruntimeLocal
 	}
+	t.Vtime += (t.StopTs - t.StartTs) * t.Weight / 100
 
-	// Evaluate used task time slice.
-	slice = min(
-		saturating_sub(t.SumExecRuntime, info.prevExecRuntime),
-		SLICE_NS_DEFAULT,
-	)
-	// Update total task cputime.
-	info.prevExecRuntime = t.SumExecRuntime
-
-	// Update task's vruntime re-aligning it to min_vruntime.
-	//
-	// The amount of vruntime budget an idle task can accumulate is adjusted in function of its
-	// latency weight, which is derived from the average number of voluntary context switches.
-	// This ensures that latency-sensitive tasks receive a priority boost.
-	baseWeight = min(info.avgNvcsw, MAX_LATENCY_WEIGHT)
-	weightMultiplier = uint64(1)
-	if t.Flags&SCX_ENQ_WAKEUP != 0 {
-		weightMultiplier = 2
-	}
-	latencyWeight = (baseWeight * weightMultiplier) + 1
-
-	minVruntimeLimit = saturating_sub(minVruntime, SLICE_NS_DEFAULT*latencyWeight)
-	if info.vruntime < minVruntimeLimit {
-		info.vruntime = minVruntimeLimit
-	}
-	vslice = slice * 100 / t.Weight
-	info.vruntime += vslice
-	minVruntime += vslice
+	return t.Vtime + min(t.SumExecRuntime, SLICE_NS_DEFAULT*100)
 }
 
 func GetTaskFromPool() *core.QueuedTask {
@@ -122,18 +74,6 @@ func GetTaskFromPool() *core.QueuedTask {
 	return t.QueuedTask
 }
 
-// TaskInfo stores task statistics
-type TaskInfo struct {
-	sumExecRuntime  uint64
-	prevExecRuntime uint64
-	vruntime        uint64
-	avgNvcsw        uint64
-	nvcsw           uint64
-	nvcswTs         uint64
-}
-
-var taskInfoMap = make(map[int32]*TaskInfo)
-var mapLock sync.RWMutex
 var minVruntime uint64 = 0 // global vruntime
 
 func now() uint64 {
@@ -157,7 +97,9 @@ type Task struct {
 	Timestamp uint64
 }
 
-func LessQueuedTask(a, b *Task) bool {
+func LessQueuedTask(
+	a, b *Task,
+) bool {
 	if a.Deadline != b.Deadline {
 		return a.Deadline < b.Deadline
 	}
@@ -167,14 +109,19 @@ func LessQueuedTask(a, b *Task) bool {
 	return a.Pid < b.Pid
 }
 
-func InsertTaskToPool(newTask Task) bool {
+func InsertTaskToPool(
+	newTask Task,
+) bool {
 	if taskPoolCount >= taskPoolSize-1 {
 		return false
 	}
 	insertIdx := taskPoolTail
 	for i := 0; i < taskPoolCount; i++ {
 		idx := (taskPoolHead + i) % taskPoolSize
-		if LessQueuedTask(&newTask, &taskPool[idx]) {
+		if LessQueuedTask(
+			&newTask,
+			&taskPool[idx],
+		) {
 			insertIdx = idx
 			break
 		}
@@ -200,6 +147,8 @@ func main() {
 	if err != nil {
 		log.Printf("AssignUserSchedPid failed: %v", err)
 	}
+	bpfModule.SetDebug(true)
+	bpfModule.Start()
 
 	err = util.InitCacheDomains(bpfModule)
 	if err != nil {
@@ -213,23 +162,10 @@ func main() {
 	log.Printf("UserSched's Pid: %v", core.GetUserSchedPid())
 
 	go func() {
-		for {
-			if pid := bpfModule.ReceiveProcExitEvt(); pid != -1 {
-				mapLock.Lock()
-				delete(taskInfoMap, int32(pid))
-				mapLock.Unlock()
-			} else {
-				time.Sleep(100 * time.Millisecond)
-			}
-		}
-	}()
-
-	go func() {
 		var t *core.QueuedTask
 		var task *core.DispatchedTask
 		var err error
 		var cpu int32
-		var info *TaskInfo
 
 		for true {
 			t = GetTaskFromPool()
@@ -246,12 +182,9 @@ func main() {
 					log.Printf("SelectCPU failed: %v", err)
 				}
 
-				mapLock.RLock()
-				info = taskInfoMap[t.Pid]
-				mapLock.RUnlock()
 				// Evaluate used task time slice.
 				nrWaiting := core.GetNrQueued() + core.GetNrScheduled() + 1
-				task.Vtime = info.vruntime
+				task.Vtime = t.Vtime
 				task.SliceNs = max(SLICE_NS_DEFAULT/nrWaiting, SLICE_NS_MIN)
 				task.Cpu = cpu
 

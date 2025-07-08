@@ -16,26 +16,11 @@ type QueuedTask struct {
 	Pid            int32  // pid that uniquely identifies a task
 	Cpu            int32  // CPU where the task is running
 	Flags          uint64 // task enqueue flags
+	StartTs        uint64 // Timestamp since last time the task ran on a CPU
+	StopTs         uint64 // Timestamp since last time the task released a CPU
 	SumExecRuntime uint64 // Total cpu time
-	Nvcsw          uint64 // Total amount of voluntary context switches
 	Weight         uint64 // Task static priority
-	Slice          uint64 // Time slice budget
 	Vtime          uint64 // Current vruntime
-	CpuMaskCnt     uint64 // cpumask generation counter (private)
-}
-
-func (s *Sched) ReceiveProcExitEvt() int {
-	select {
-	case e := <-s.exitEvt:
-		if len(e) < int(unsafe.Sizeof(int32(0))) {
-			log.Printf("ReceiveProcExitEvt: data length is less than int32 size, %d", len(e))
-			return -1
-		}
-		pid := int(binary.LittleEndian.Uint32(e[0:4]))
-		return pid
-	default:
-		return -1
-	}
 }
 
 func (s *Sched) BlockTilReadyForDequeue(ctx context.Context) {
@@ -98,12 +83,11 @@ type DispatchedTask struct {
 // NewDispatchedTask creates a DispatchedTask from a QueuedTask.
 func NewDispatchedTask(task *QueuedTask) *DispatchedTask {
 	return &DispatchedTask{
-		Pid:        task.Pid,
-		Cpu:        task.Cpu,
-		Flags:      task.Flags,
-		SliceNs:    0, // use default time slice
-		Vtime:      0,
-		CpuMaskCnt: task.CpuMaskCnt,
+		Pid:     task.Pid,
+		Cpu:     task.Cpu,
+		Flags:   task.Flags,
+		SliceNs: 0, // use default time slice
+		Vtime:   0,
 	}
 }
 
@@ -122,12 +106,11 @@ func fastDecode(data []byte, task *QueuedTask) error {
 	task.Pid = int32(binary.LittleEndian.Uint32(data[0:4]))
 	task.Cpu = int32(binary.LittleEndian.Uint32(data[4:8]))
 	task.Flags = binary.LittleEndian.Uint64(data[8:16])
-	task.SumExecRuntime = binary.LittleEndian.Uint64(data[16:24])
-	task.Nvcsw = binary.LittleEndian.Uint64(data[24:32])
-	task.Weight = binary.LittleEndian.Uint64(data[32:40])
-	task.Slice = binary.LittleEndian.Uint64(data[40:48])
+	task.StartTs = binary.LittleEndian.Uint64(data[16:24])
+	task.StopTs = binary.LittleEndian.Uint64(data[24:32])
+	task.SumExecRuntime = binary.LittleEndian.Uint64(data[32:40])
+	task.Weight = binary.LittleEndian.Uint64(data[40:48])
 	task.Vtime = binary.LittleEndian.Uint64(data[48:56])
-	task.CpuMaskCnt = binary.LittleEndian.Uint64(data[56:64])
 
 	return nil
 }
