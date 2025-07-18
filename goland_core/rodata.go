@@ -23,6 +23,7 @@ type RodataMap struct {
 }
 
 type Rodata struct {
+	DefaultSlice           uint64   `json:"default_slice"`
 	SmtEnabled             bool     `json:"smt_enabled"`
 	Debug                  bool     `json:"debug"`
 	Pad0                   [54]byte `json:"-"` // __pad0[54]
@@ -71,6 +72,7 @@ type Rodata struct {
 	UserschedPid           uint32   `json:"usersched_pid"`
 	KhugepagePid           uint32   `json:"khugepage_pid"`
 	SwitchPartial          bool     `json:"switch_partial"`
+	EarlyProcessing        bool     `json:"early_processing"`
 	BuiltinIdle            bool     `json:"builtin_idle"`
 }
 
@@ -100,6 +102,14 @@ func (s *Sched) AssignUserSchedPid(pid int) error {
 
 func (s *Sched) SetDebug(enabled bool) {
 	C.set_debug(C.bool(enabled))
+}
+
+func (s *Sched) SetEarlyProcessing(enabled bool) {
+	C.set_early_processing(C.bool(enabled))
+}
+
+func (s *Sched) SetDefaultSlice(t uint64) {
+	C.set_default_slice(C.u64(t))
 }
 
 // KhugepagePid finds and returns the PID of the khugepaged process
