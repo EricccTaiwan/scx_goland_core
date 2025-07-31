@@ -15,6 +15,7 @@ import (
 type QueuedTask struct {
 	Pid            int32  // pid that uniquely identifies a task
 	Cpu            int32  // CPU where the task is running
+	NrCpusAllowed  uint64 // Number of CPUs that the task can use
 	Flags          uint64 // task enqueue flags
 	StartTs        uint64 // Timestamp since last time the task ran on a CPU
 	StopTs         uint64 // Timestamp since last time the task released a CPU
@@ -105,12 +106,13 @@ func fastDecode(data []byte, task *QueuedTask) error {
 	}
 	task.Pid = int32(binary.LittleEndian.Uint32(data[0:4]))
 	task.Cpu = int32(binary.LittleEndian.Uint32(data[4:8]))
-	task.Flags = binary.LittleEndian.Uint64(data[8:16])
-	task.StartTs = binary.LittleEndian.Uint64(data[16:24])
-	task.StopTs = binary.LittleEndian.Uint64(data[24:32])
-	task.SumExecRuntime = binary.LittleEndian.Uint64(data[32:40])
-	task.Weight = binary.LittleEndian.Uint64(data[40:48])
-	task.Vtime = binary.LittleEndian.Uint64(data[48:56])
+	task.NrCpusAllowed = binary.LittleEndian.Uint64(data[8:16])
+	task.Flags = binary.LittleEndian.Uint64(data[16:24])
+	task.StartTs = binary.LittleEndian.Uint64(data[24:32])
+	task.StopTs = binary.LittleEndian.Uint64(data[32:40])
+	task.SumExecRuntime = binary.LittleEndian.Uint64(data[40:48])
+	task.Weight = binary.LittleEndian.Uint64(data[48:56])
+	task.Vtime = binary.LittleEndian.Uint64(data[56:64])
 
 	return nil
 }
