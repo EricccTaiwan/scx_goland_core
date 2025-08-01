@@ -148,6 +148,7 @@ func main() {
 		log.Printf("AssignUserSchedPid failed: %v", err)
 	}
 	bpfModule.SetDebug(true)
+	bpfModule.SetBuiltinIdle(true)
 	bpfModule.Start()
 
 	err = util.InitCacheDomains(bpfModule)
