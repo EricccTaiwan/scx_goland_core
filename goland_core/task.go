@@ -22,6 +22,7 @@ type QueuedTask struct {
 	SumExecRuntime uint64 // Total cpu time
 	Weight         uint64 // Task static priority
 	Vtime          uint64 // Current vruntime
+	Tgid           int32  // Task group id
 }
 
 func (s *Sched) BlockTilReadyForDequeue(ctx context.Context) {
@@ -113,6 +114,7 @@ func fastDecode(data []byte, task *QueuedTask) error {
 	task.SumExecRuntime = binary.LittleEndian.Uint64(data[40:48])
 	task.Weight = binary.LittleEndian.Uint64(data[48:56])
 	task.Vtime = binary.LittleEndian.Uint64(data[56:64])
+	task.Tgid = int32(binary.LittleEndian.Uint32(data[64:68]))
 
 	return nil
 }
