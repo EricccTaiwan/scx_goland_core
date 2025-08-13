@@ -24,6 +24,7 @@ type Sched struct {
 	queue      chan []byte // The map containing tasks that are queued to user space from the kernel.
 	dispatch   chan []byte
 	selectCpu  *bpf.BPFProg
+	preemptCpu *bpf.BPFProg
 	siblingCpu *bpf.BPFProg
 	urb        *bpf.UserRingBuffer
 }
@@ -126,6 +127,10 @@ func (s *Sched) Start() {
 		if prog.Name() == "enable_sibling_cpu" {
 			s.siblingCpu = prog
 		}
+
+		if prog.Name() == "do_preempt" {
+			s.preemptCpu = prog
+		}
 	}
 }
 
@@ -162,10 +167,37 @@ func (s *Sched) SelectCPU(t *QueuedTask) (error, int32) {
 	return selectFailed, 0
 }
 
+type preempt_arg struct {
+	cpuId int32
+}
+
 type domain_arg struct {
 	lvlId        int32
 	cpuId        int32
 	siblingCpuId int32
+}
+
+func (s *Sched) PreemptCpu(cpuId int32) error {
+	if s.preemptCpu != nil {
+		arg := &preempt_arg{
+			cpuId: cpuId,
+		}
+		var data bytes.Buffer
+		binary.Write(&data, binary.LittleEndian, arg)
+		opt := bpf.RunOpts{
+			CtxIn:     data.Bytes(),
+			CtxSizeIn: uint32(data.Len()),
+		}
+		err := s.preemptCpu.Run(&opt)
+		if err != nil {
+			return err
+		}
+		if opt.RetVal != 0 {
+			return fmt.Errorf("retVal: %v", opt.RetVal)
+		}
+		return nil
+	}
+	return fmt.Errorf("prog (selectCpu) not found")
 }
 
 func (s *Sched) EnableSiblingCpu(lvlId, cpuId, siblingCpuId int32) error {

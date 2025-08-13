@@ -74,6 +74,10 @@ struct domain_arg {
 	s32 sibling_cpu_id;
 };
 
+struct preempt_cpu_arg {
+	s32 cpu_id;
+};
+
 /*
  * Task sent to the user-space scheduler by the BPF dispatcher.
  *
