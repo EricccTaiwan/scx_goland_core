@@ -45,10 +45,10 @@ libbpf: $(LIBBPF_SRC) $(wildcard $(LIBBPF_SRC)/*.[ch])
 
 dep:
 	git clone https://github.com/libbpf/libbpf.git && \
-	cd libbpf && \
+	cd libbpf/src && \
 	git checkout 09b9e83 && \
-	cd src && \
 	make && \
+	cd - && \
 	git clone -b feat/skel https://github.com/Gthulhu/libbpfgo.git
 
 $(BPF_OBJ): %.o: %.c
