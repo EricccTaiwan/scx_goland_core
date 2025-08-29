@@ -48,6 +48,7 @@ dep:
 	cd libbpf/src && \
 	git checkout 09b9e83 && \
 	make && \
+	sudo make install && \
 	cd - && \
 	git clone -b feat/skel https://github.com/Gthulhu/libbpfgo.git
 
