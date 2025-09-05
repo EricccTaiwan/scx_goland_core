@@ -55,6 +55,10 @@ func LoadSched(objPath string) *Sched {
 	return s
 }
 
+func (s *Sched) SetPlugin(p CustomScheduler) {
+	s.plugin = p
+}
+
 func (s *Sched) Start() {
 	var err error
 	bpfModule := s.mod
