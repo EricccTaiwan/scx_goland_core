@@ -33,6 +33,13 @@ func (s *Sched) SelectQueuedTask() *models.QueuedTask {
 	return nil
 }
 
+func (s *Sched) SelectCPU(t *models.QueuedTask) (error, int32) {
+	if s.plugin != nil {
+		return s.plugin.SelectCPU(s, t)
+	}
+	return s.selectCPU(t)
+}
+
 func (s *Sched) DetermineTimeSlice(t *models.QueuedTask) uint64 {
 	if s.plugin != nil {
 		return s.plugin.DetermineTimeSlice(s, t)

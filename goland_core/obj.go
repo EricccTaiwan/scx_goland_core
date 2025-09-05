@@ -148,7 +148,7 @@ type task_cpu_arg struct {
 
 var selectFailed error = fmt.Errorf("prog (selectCpu) not found")
 
-func (s *Sched) SelectCPU(t *models.QueuedTask) (error, int32) {
+func (s *Sched) selectCPU(t *models.QueuedTask) (error, int32) {
 	if s.selectCpu != nil {
 		arg := &task_cpu_arg{
 			pid:   t.Pid,
