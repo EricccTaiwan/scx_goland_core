@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/Gthulhu/plugin/models"
+	"github.com/Gthulhu/plugin/plugin"
 	bpf "github.com/aquasecurity/libbpfgo"
 	"golang.org/x/sys/unix"
 )
@@ -18,7 +19,7 @@ const (
 
 type Sched struct {
 	mod        *bpf.Module
-	plugin     CustomScheduler
+	plugin     plugin.CustomScheduler
 	bss        *BssMap
 	uei        *UeiMap
 	rodata     *RodataMap
@@ -55,7 +56,7 @@ func LoadSched(objPath string) *Sched {
 	return s
 }
 
-func (s *Sched) SetPlugin(p CustomScheduler) {
+func (s *Sched) SetPlugin(p plugin.CustomScheduler) {
 	s.plugin = p
 }
 
