@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Gthulhu/plugin/models"
 	core "github.com/Gthulhu/scx_goland_core/goland_core"
 	"github.com/Gthulhu/scx_goland_core/util"
 )
@@ -31,7 +32,7 @@ var taskPoolHead, taskPoolTail int
 func DrainQueuedTask(s *core.Sched) int {
 	var count int
 	for (taskPoolTail+1)%taskPoolSize != taskPoolHead {
-		var newQueuedTask core.QueuedTask
+		var newQueuedTask models.QueuedTask
 		s.DequeueTask(&newQueuedTask)
 		if newQueuedTask.Pid == -1 {
 			return count
@@ -49,7 +50,7 @@ func DrainQueuedTask(s *core.Sched) int {
 
 var timeout = uint64(3 * NSEC_PER_SEC)
 
-func updatedEnqueueTask(s *core.Sched, t *core.QueuedTask) uint64 {
+func updatedEnqueueTask(s *core.Sched, t *models.QueuedTask) uint64 {
 	if minVruntime < t.Vtime {
 		minVruntime = t.Vtime
 	}
@@ -64,7 +65,7 @@ func updatedEnqueueTask(s *core.Sched, t *core.QueuedTask) uint64 {
 	return t.Vtime + min(t.SumExecRuntime, SLICE_NS_DEFAULT*100)
 }
 
-func GetTaskFromPool() *core.QueuedTask {
+func GetTaskFromPool() *models.QueuedTask {
 	if taskPoolHead == taskPoolTail {
 		return nil
 	}
@@ -92,7 +93,7 @@ func saturating_sub(a, b uint64) uint64 {
 }
 
 type Task struct {
-	*core.QueuedTask
+	*models.QueuedTask
 	Deadline  uint64
 	Timestamp uint64
 }
@@ -163,7 +164,7 @@ func main() {
 	log.Printf("UserSched's Pid: %v", core.GetUserSchedPid())
 
 	go func() {
-		var t *core.QueuedTask
+		var t *models.QueuedTask
 		var task *core.DispatchedTask
 		var err error
 		var cpu int32

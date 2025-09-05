@@ -7,6 +7,7 @@ import (
 	"log"
 	"syscall"
 
+	"github.com/Gthulhu/plugin/models"
 	bpf "github.com/aquasecurity/libbpfgo"
 	"golang.org/x/sys/unix"
 )
@@ -17,6 +18,7 @@ const (
 
 type Sched struct {
 	mod        *bpf.Module
+	plugin     CustomScheduler
 	bss        *BssMap
 	uei        *UeiMap
 	rodata     *RodataMap
@@ -142,7 +144,7 @@ type task_cpu_arg struct {
 
 var selectFailed error = fmt.Errorf("prog (selectCpu) not found")
 
-func (s *Sched) SelectCPU(t *QueuedTask) (error, int32) {
+func (s *Sched) SelectCPU(t *models.QueuedTask) (error, int32) {
 	if s.selectCpu != nil {
 		arg := &task_cpu_arg{
 			pid:   t.Pid,
