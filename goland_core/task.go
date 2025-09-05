@@ -9,21 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
-)
 
-// Task queued for scheduling from the BPF component (see bpf_intf::queued_task_ctx).
-type QueuedTask struct {
-	Pid            int32  // pid that uniquely identifies a task
-	Cpu            int32  // CPU where the task is running
-	NrCpusAllowed  uint64 // Number of CPUs that the task can use
-	Flags          uint64 // task enqueue flags
-	StartTs        uint64 // Timestamp since last time the task ran on a CPU
-	StopTs         uint64 // Timestamp since last time the task released a CPU
-	SumExecRuntime uint64 // Total cpu time
-	Weight         uint64 // Task static priority
-	Vtime          uint64 // Current vruntime
-	Tgid           int32  // Task group id
-}
+	"github.com/Gthulhu/plugin/models"
+)
 
 func (s *Sched) BlockTilReadyForDequeue(ctx context.Context) {
 	select {
@@ -51,7 +39,7 @@ func (s *Sched) ReadyForDequeue() bool {
 	}
 }
 
-func (s *Sched) DequeueTask(task *QueuedTask) {
+func (s *Sched) DequeueTask(task *models.QueuedTask) {
 	select {
 	case t := <-s.queue:
 		err := fastDecode(t, task)
@@ -83,7 +71,7 @@ type DispatchedTask struct {
 }
 
 // NewDispatchedTask creates a DispatchedTask from a QueuedTask.
-func NewDispatchedTask(task *QueuedTask) *DispatchedTask {
+func NewDispatchedTask(task *models.QueuedTask) *DispatchedTask {
 	return &DispatchedTask{
 		Pid:     task.Pid,
 		Cpu:     task.Cpu,
@@ -101,8 +89,8 @@ func (s *Sched) DispatchTask(t *DispatchedTask) error {
 	return nil
 }
 
-func fastDecode(data []byte, task *QueuedTask) error {
-	if len(data) < int(unsafe.Sizeof(QueuedTask{})) {
+func fastDecode(data []byte, task *models.QueuedTask) error {
+	if len(data) < int(unsafe.Sizeof(models.QueuedTask{})) {
 		return fmt.Errorf("data length is less than QueuedTask size")
 	}
 	task.Pid = int32(binary.LittleEndian.Uint32(data[0:4]))
