@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/Gthulhu/plugin/models"
-	core "github.com/Gthulhu/scx_goland_core/goland_core"
-	"github.com/Gthulhu/scx_goland_core/util"
+	core "github.com/Gthulhu/qumun/goland_core"
+	"github.com/Gthulhu/qumun/util"
 )
 
 const (

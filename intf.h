@@ -44,6 +44,9 @@ typedef int pid_t;
  * cpu_map that is used to store the idle state and CPU ownership).
  */
 #define MAX_CPUS 1024
+#define SCX_DSQ_LOCAL_ON 13835058055282163712ULL
+#define SCX_ENQ_PREEMPT 4294967296ULL
+#define SCX_ENQ_HEAD 16ULL
 
 /* Special dispatch flags */
 enum {
@@ -65,6 +68,10 @@ struct task_cpu_arg {
 	u64 flags;
 };
 
+struct preempt_cpu_arg {
+	s32 cpu_id;
+};
+
 /*
  * Specify a sibling CPU relationship for a specific scheduling domain.
  */
@@ -72,10 +79,6 @@ struct domain_arg {
 	s32 lvl_id;
 	s32 cpu_id;
 	s32 sibling_cpu_id;
-};
-
-struct preempt_cpu_arg {
-	s32 cpu_id;
 };
 
 /*

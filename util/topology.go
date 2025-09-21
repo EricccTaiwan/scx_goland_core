@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	core "github.com/Gthulhu/scx_goland_core/goland_core"
+	core "github.com/Gthulhu/qumun/goland_core"
 )
 
 func parseCPUs(cpuList string) ([]int, error) {

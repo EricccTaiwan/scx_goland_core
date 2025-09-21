@@ -1,4 +1,4 @@
-module github.com/Gthulhu/scx_goland_core
+module github.com/Gthulhu/qumun
 
 go 1.22.6
 

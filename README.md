@@ -1,8 +1,11 @@
-# SCX GoLand Core
+# qumun - A Custom Linux Scheduler Framework using eBPF and Go
 
-A framework for building custom Linux schedulers using BPF and Go.
+**qumun** is a scheduler development framework that empowers developers to build custom Linux schedulers using Golang and eBPF.
 
-> Current status: not ready for production use.
+The name qumun comes from the Bunun language (an Indigenous people of Taiwan), where it means “heart.”
+Just as the heart powers and sustains the body, a scheduler is the core heartbeat of the operating system — orchestrating tasks, balancing workloads, and keeping everything alive and running.
+
+By choosing this name, we hope to highlight both the technical role of a scheduler and also share a piece of Taiwan’s Indigenous culture with the global open-source community.
 
 ## DEMO
 
