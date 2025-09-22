@@ -15,7 +15,7 @@
  * to be dispatched in the proper order.
  *
  * Messages between the BPF component and the user-space scheduler are passed
- * using BPF_MAP_TYPE_RINGBUFFER / BPF_MAP_TYPE_USER_RINGBUF maps: @queued for
+ * using BPF_MAP_TYPE_RINGBUF / BPF_MAP_TYPE_USER_RINGBUF maps: @queued for
  * the messages sent by the BPF dispatcher to the user-space scheduler and
  * @dispatched for the messages sent by the user-space scheduler to the BPF
  * dispatcher.
@@ -103,21 +103,19 @@ volatile u64 nr_user_dispatches, nr_kernel_dispatches,
 /* Failure statistics */
 volatile u64 nr_failed_dispatches, nr_sched_congested;
 
- /* Report additional debugging information */
+/* Report additional debugging information */
 const volatile bool debug;
 
 const volatile bool early_processing;
 
 const volatile u64 default_slice = 20000000ULL; 
 
-
-
 /* Rely on the in-kernel idle CPU selection policy */
 const volatile bool builtin_idle;
 
 /* Allow to use bpf_printk() only when @debug is set */
 #define dbg_msg(_fmt, ...) do {						\
-	if (debug)							\
+	if (debug)										\
 		bpf_printk(_fmt, ##__VA_ARGS__);			\
 } while(0)
 
@@ -176,7 +174,7 @@ struct {
  * Drained by the kernel in .dispatch().
  */
 struct {
-        __uint(type, BPF_MAP_TYPE_USER_RINGBUF);
+	__uint(type, BPF_MAP_TYPE_USER_RINGBUF);
 	__uint(max_entries, MAX_ENQUEUED_TASKS *
 				sizeof(struct dispatched_task_ctx));
 } dispatched SEC(".maps");
